@@ -1,6 +1,6 @@
 ---
-title: "Escucha social de figuras presidenciales en Chile"
-subtitle: "Una aproximación mediante comunidades en Reddit: Un enfoque computacional"
+title: "Escucha social de comunidades digitales en Chile"
+subtitle: "Una aproximación desde Reddit: Un enfoque computacional"
 institute: ""
 date: today
 format: 

@@ -24,7 +24,10 @@ import pyLDAvis
 # ========================================
 # 2️⃣ CARGA Y LIMPIEZA DE DATOS
 # ========================================
-df = pd.read_csv("raw_data/search_posts_Kast.csv")
+df = pd.read_csv("raw_data/r_chile_posts-generales.csv", sep=";")
+
+df
+
 
 # Cargar modelo SpaCy y stopwords
 nlp = spacy.load("es_core_news_sm")
@@ -39,7 +42,7 @@ def clean_text(text):
     tokens = [word for word in text.split() if word not in stop_words]
     return " ".join(tokens)
 
-df["text_clean"] = (df["title"].fillna("") + " " + df["selftext"].fillna("")).apply(clean_text)
+df["text_clean"] = (df["title"].fillna("") + " " + df["title"].fillna("")).apply(clean_text)
 
 # ========================================
 # 3️⃣ EXPLORACIÓN: FRECUENCIAS Y SENTIMIENTO
@@ -57,41 +60,132 @@ plt.show()
 wc = WordCloud(width=800, height=400, background_color="white", colormap="Dark2").generate(" ".join(df["text_clean"]))
 plt.imshow(wc, interpolation="bilinear"); plt.axis("off"); plt.show()
 
-# Análisis de sentimiento
-analyzer = create_analyzer(task="sentiment", lang="es")
-df["sentiment"] = df["text_clean"].apply(lambda x: analyzer.predict(x).output)
-df["sentiment"].value_counts().plot(kind="bar", color=["green", "red", "gray"], title="Distribución de Sentimientos")
+import matplotlib.pyplot as plt
+
+# Contar sentimientos
+sentiment_counts = df["sentiment"].value_counts()
+
+# Crear gráfico
+plt.figure(figsize=(6, 4))  # ancho x alto
+sentiment_counts.plot(kind="bar", color=["green", "red", "gray"])
+plt.title("Distribución de Sentimientos", fontsize=14)
+plt.xlabel("Sentimiento", fontsize=12)
+plt.ylabel("Cantidad", fontsize=12)
+plt.xticks(rotation=0)
+plt.tight_layout()
+plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.show()
 
 # ========================================
 # 4️⃣ TOPIC MODELING (LDA) Y 2 TEMAS
 # ========================================
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.decomposition import LatentDirichletAllocation
+import matplotlib.pyplot as plt
+import pandas as pd
+
+# --- Paso 1: Vectorizar texto ---
 vectorizer = CountVectorizer(max_df=0.8, min_df=5)
 X_counts = vectorizer.fit_transform(df["text_clean"])
+terms = vectorizer.get_feature_names_out()
 
-# Selección de número de temas por perplejidad
+# --- Paso 2: Probar diferentes números de temas ---
 perplexities = []
-for k in range(2, 7):
+models = {}  # Guarda cada modelo LDA
+
+k_range = range(2, 10)  # Puedes ajustar este rango
+for k in k_range:
     lda_k = LatentDirichletAllocation(n_components=k, random_state=42)
     lda_k.fit(X_counts)
+    models[k] = lda_k
     perplexities.append(lda_k.perplexity(X_counts))
-plt.plot(range(2, 7), perplexities, marker="o"); plt.xlabel("Temas"); plt.ylabel("Perplejidad"); plt.show()
 
-# LDA con 2 temas
-lda_2 = LatentDirichletAllocation(n_components=2, random_state=42)
-lda_2.fit(X_counts)
-terms = vectorizer.get_feature_names_out()
-for idx, topic in enumerate(lda_2.components_):
-    print(f"Tema {idx}: {', '.join([terms[i] for i in topic.argsort()[-10:]])}")
+# --- Paso 3: Visualizar perplejidad ---
+plt.figure(figsize=(6, 4))
+plt.plot(k_range, perplexities, marker="o")
+plt.title("Perplejidad por número de temas")
+plt.xlabel("Número de temas (k)")
+plt.ylabel("Perplejidad")
+plt.xticks(k_range)
+plt.grid(True)
+plt.tight_layout()
+plt.show()
 
-# Asignar tema dominante
-topic_probs = lda_2.transform(X_counts)
+
+# Mostrar palabras clave por tema para un valor k específico
+def mostrar_temas(modelo_lda, terms, top_n=30):
+    for idx, topic in enumerate(modelo_lda.components_):
+        top_words = [terms[i] for i in topic.argsort()[-top_n:]]
+        print(f"Tema {idx+1}: {', '.join(top_words)}")
+
+# Ejemplo para k=6
+mostrar_temas(models[7], terms)
+
+topic_probs = models[7].transform(X_counts)
+
+etiquetas_7_final = {
+    0: "Elecciones presidenciales y liderazgo de la derecha",
+    1: "Problemas sociales y laborales actuales",
+    2: "Figuras controversiales y precariedad laboral",
+    3: "Conflicto territorial y seguridad pública",
+    4: "Delincuencia urbana y fiscalización institucional",
+    5: "Corrupción política y deuda fiscal",
+    6: "Movilización social y vida cotidiana"
+}
+
+df["etiqueta_tema"] = df["tema_dominante"].map(etiquetas_7_final)
+
+
 df["tema_dominante"] = topic_probs.argmax(axis=1)
 df["confianza_tema"] = topic_probs.max(axis=1)
 
-# Etiquetas semánticas
-mapa_temas = {0: "Debate político general y discusiones internas", 1: "Estrategia electoral y liderazgos de la derecha"}
-df["etiqueta_tema"] = df["tema_dominante"].map(mapa_temas)
+
+#==
+# Redes
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import networkx as nx
+from sklearn.feature_extraction.text import CountVectorizer
+
+# 👉 Reemplaza esto con tu DataFrame real
+# df = pd.read_csv("ruta_a_tu_dataframe.csv")
+
+# --- Agrupar textos por tema dominante ---
+temas_texto = df.groupby("tema_dominante")["text_clean"].apply(lambda x: " ".join(x)).to_dict()
+
+# --- Crear y visualizar redes de co-ocurrencia por tema ---
+for tema, texto in temas_texto.items():
+    # Vectorizar palabras (un solo documento por tema)
+    vectorizer = CountVectorizer()
+    X = vectorizer.fit_transform([texto])
+    terms = vectorizer.get_feature_names_out()
+
+    # Matriz de co-ocurrencia
+    cooc_matrix = (X.T @ X).toarray()
+
+    # Crear grafo
+    G = nx.Graph()
+    for i in range(len(terms)):
+        for j in range(i + 1, len(terms)):
+            weight = cooc_matrix[i, j]
+            if weight > 0:
+                G.add_edge(terms[i], terms[j], weight=weight)
+
+    # --- Visualización ---
+    plt.figure(figsize=(8, 6))
+    pos = nx.spring_layout(G, seed=42)
+    weights = [G[u][v]["weight"] for u, v in G.edges()]
+    nx.draw_networkx_nodes(G, pos, node_size=1000, node_color="#A0CBE2")
+    nx.draw_networkx_edges(G, pos, width=weights, alpha=0.6)
+    nx.draw_networkx_labels(G, pos, font_size=10)
+    plt.title(f"🔗 Red de co-ocurrencia — Tema {tema}")
+    plt.axis("off")
+    plt.tight_layout()
+    plt.show()
+
+
+
 
 # ========================================
 # 5️⃣ CRUCE SENTIMIENTO × TEMA Y EVOLUCIÓN

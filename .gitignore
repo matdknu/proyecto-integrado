@@ -1,2 +1,6 @@
 credenciales.txt
 credenciales
+script/input/nlp.py
+script/input/reddit_general.py
+script/input/reddit-2018.py
+script/input/reddit_general.py
