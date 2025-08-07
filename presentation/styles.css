@@ -1,0 +1,122 @@
+/* Configuración general de fuente para toda la presentación */
+.reveal {
+  font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+
+
+/* Estilos para los encabezados */
+.reveal h1, 
+.reveal h2, 
+.reveal h3, 
+.reveal h4, 
+.reveal h5, 
+.reveal h6 {
+  font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  color: #2943c4ff;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.reveal h1 { font-size: 2.5em; }
+.reveal h2 { font-size: 2.0em; }
+.reveal h3 { font-size: 1.6em; }
+.reveal h4 { font-size: 1.3em; }
+
+/* Estilos para listas */
+.reveal ul,
+.reveal ol {
+  display: block;
+  text-align: left;
+  margin: 0 0 0 1em;
+}
+
+.reveal li {
+  margin: 0.5em 0;
+  font-size: 1.1em;
+}
+
+/* Estilos para texto normal */
+.reveal p {
+  margin: 0.5em 0;
+  line-height: 1.5;
+  font-size: 1.1em;
+}
+
+/* Estilos para texto en negrita */
+.reveal strong {
+  color: #44286F;
+  font-weight: bold;
+}
+
+/* Estilos para pestañas */
+.panel-tabset .nav-tabs {
+  font-size: 1.2em;
+}
+
+.panel-tabset .tab-content {
+  font-size: 1.1em;
+}
+
+/* Contenedor principal para la diapositiva de título */
+.title-container {
+  display: grid;
+  grid-template-columns: 50% 50%;
+  gap: 5%;
+  height: 100%;
+  width: 100%;
+  align-items: center;
+}
+
+/* Contenido del título (lado izquierdo) */
+.title-content {
+  text-align: left;
+  padding-left: 20px;
+}
+
+/* Contenedor de la imagen (lado derecho) */
+.title-image {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+
+
+.title-image img {
+  max-width: 100%;
+  max-height: 500px;
+  border-radius: 0; /* o mantenerlo si quieres esquinas redondeadas */
+  box-shadow: none; /* sin sombra */
+}
+
+
+/* Estilos para los elementos de texto en la portada */
+.title {
+  margin-bottom: 20px;
+  font-size: 2.2em;
+  color: #44286F;
+}
+
+.subtitle {
+  font-size: 1.4em;
+  margin-bottom: 30px;
+  color: #44286F;
+}
+
+.author {
+  font-size: 1.2em;
+  margin-bottom: 10px;
+}
+
+.institute {
+  font-size: 1em;
+  margin-bottom: 10px;
+}
+
+.advisor {
+  font-size: 1em;
+  font-style: italic;
+}

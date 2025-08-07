@@ -1,0 +1,1003 @@
+---
+title: "Informe de Estudio Panel de Percepciones de Seguridad y Policías en Chile"
+subtitle: "Análisis de tendencias y trayectorias (Ola 1 a 3)"
+institute: ""
+date: today
+format: 
+  revealjs:
+    theme: simple
+    slide-number: true
+    incremental: false
+    fontsize: 28px
+    margin: 0.3
+    transition: fade
+    controls: true
+    controls-layout: bottom-right
+    css: styles.css
+    template-partials:
+      - title-slide.html
+    cite-method: citeproc
+    footer: "Observatorio de Violencia y Legitimidad Social (OLES)"
+---
+
+# Equipo técnico EPSEP
+
+::: columns
+::: {.column width="50%"}
+Mónica Gerber, *Escuela de Gobierno UC*
+
+Cristóbal Moya, *DIW Berlín*
+
+Roberto Cantillán, *Instituto de Sociología UC*
+
+Matías Deneken, *Observatorio de Violencia y Legitimidad Social*
+:::
+
+::: {.column width="50%"}
+![](image/logos.png){fig-align="center" width="307"}
+:::
+:::
+
+Como citar: Observatorio de Violencia y Legitimidad Social (2025). Primer Informe de Estudio Panel de Percepciones de Seguridad y Policías en Chile.
+
+# INTRODUCCIÓN
+
+## Ficha técnica
+
+-   Hablar sobre lo no probabilístico
+-   Fechas en su medición
+-   Algo más...?
+
+## Resumen del Análisis
+
+*\[Escribir cuando estén listos todos los gráficos\]*
+
+Los datos provienen del panel longitudinal, permitiendo observar la evolución de las percepciones a lo largo de tres olas de medición.
+
+```{r setup, include=FALSE}
+# ===============================================================================
+# BLOQUE DE CONFIGURACIÓN CON DATOS REALES
+# ===============================================================================
+
+# 0. Cargar librerías
+pacman::p_load(tidyverse, ggplot2, ggalluvial, viridis, RColorBrewer, patchwork, scales, here, glue, ggridges, haven)
+
+# USAR DATOS REALES
+# Asegúrate de que la ruta al archivo es correcta
+panel_data <- readRDS(here("data/proc_data/esep_long.rds"))
+
+# Verificar y limpiar datos
+panel_data <- panel_data %>%
+  mutate(
+    # CORRECCIÓN: Se asigna NA a cualquier ola que no sea 1, 2 o 3 para evitar la categoría "NA" en los gráficos.
+    fecha_ola = case_when(
+      wave == "1" ~ "Septiembre 2024",
+      wave == "2" ~ "Enero 2025", 
+      wave == "3" ~ "Abril 2025",
+      TRUE ~ NA_character_
+    ),
+    wave_num = as.numeric(wave),
+    
+    # Variables sociodemográficas limpias (adaptadas a nombres reales)
+    ses_clean = factor(ses_rec, levels = c("DE", "C3", "C2", "ABC1"), ordered = TRUE),
+    sex_clean = factor(sex_rec),
+    age_clean = factor(age_rec, levels = c("18 a 24", "25 a 34", "35 a 44", "45 a 54", "55 a 64", "65+"), ordered = TRUE),
+    contact_pol_clean = factor(ifelse(contact_pol == 1, "Con contacto", "Sin contacto")),
+    contact_pdi_clean = factor(ifelse(contact_pdi == 1, "Con contacto", "Sin contacto")),
+    region_clean = factor(zona),
+    
+    pos_politica_clean = factor(
+      case_when(
+        pol_id == 1 ~ "Izquierda",
+        pol_id == 2 ~ "Centro",
+        pol_id == 3 ~ "Derecha",
+        pol_id == 4 ~ "Ninguna",
+        TRUE ~ NA_character_
+      ),
+      levels = c("Derecha", "Centro", "Izquierda", "Ninguna")
+    ),
+    
+    # Variable de inseguridad (% inseguro/muy inseguro de 4 categorías según comentarios)
+    inseguro = ifelse(crime_fear %in% c(3, 4), 1, 0),
+    
+    impunity_just = impunity_att
+  ) %>%
+  filter(!is.na(fecha_ola)) # Se eliminan las filas que no pertenecen a las olas de interés
+
+# Tema unificado LIMPIO con viridis
+theme_esep_longitudinal <- function() {
+  theme_minimal(base_family = "Arial") +
+    theme(
+      plot.title = element_text(size = 26, face = "bold", hjust = 0.5, margin = margin(b = 15)),
+      plot.subtitle = element_text(size = 20, hjust = 0.5, color = "#555555", margin = margin(b = 20)),
+      axis.title = element_text(size = 20, face = "bold"),
+      axis.text = element_text(size = 18, color = "#333333"),
+      legend.title = element_text(size = 20, face = "bold"),
+      legend.text = element_text(size = 18),
+      strip.text = element_text(size = 18, face = "bold"),
+      panel.grid.major = element_line(color = "#f0f0f0", size = 0.5),
+      panel.grid.minor = element_blank(),
+      panel.background = element_blank(),
+      plot.background = element_blank(),
+      plot.caption = element_text(size = 14, color = "#777777"),
+      legend.position = "bottom",
+      axis.line = element_line(color = "#cccccc", size = 0.5),
+      plot.margin = margin(20, 20, 20, 20)
+    )
+}
+theme_set(theme_esep_longitudinal())
+
+# Paleta viridis para daltonismo según comentarios
+colors_viridis_binary <- c("Sí" = viridis(3)[3], "No" = viridis(3)[1])
+
+
+# Variables y etiquetas según comentarios específicos
+var_labels <- c(
+  "victim" = "Victimización durante últimos tres meses",
+  "crime_fear" = "Percepción de inseguridad al caminar de noche",
+  "inseguro" = "Percepción de inseguridad al caminar de noche",
+  "efficacy_crime" = "Carabineros de Chile", 
+  "efficacy_crime_pdi" = "Policía de Investigaciones",
+  "leg_moral1" = "Alineamiento moral Carabineros",
+  "leg_obey1" = "Obediencia Carabineros", 
+  "leg_moral_pdi" = "Alineamiento moral PDI",
+  "leg_obey_pdi" = "Obediencia PDI",
+  "pj_proc_crime" = "Justicia procedimental Carabineros",
+  "pj_int_crime" = "Justicia interaccional Carabineros",
+  "pj_proc_crime_pdi" = "Justicia procedimental PDI", 
+  "pj_int_crime_pdi" = "Justicia interaccional PDI",
+  "corrupt_pol" = "Carabineros de Chile",
+  "corrupt_pdi" = "Policía de Investigaciones",
+  "impunity_perc" = "Existencia de impunidad frente a uso excesivo de la fuerza",
+  "impunity_just" = "Justificación de la impunidad frente a uso excesivo de la fuerza",
+  "vio_pol_protest" = "Violencia hacia manifestantes",
+  "vio_pol_crime" = "Violencia hacia personas que han cometido delitos", 
+  "just_vio_pol_protest" = "Uso de lacrimógenas en la protesta",
+  "just_vio_pol_crime" = "Violencia contra persona que ha cometido delito y que está resistiendo el arresto",
+  "emp_pol1" = "Dar mayores facilidades para que los carabineros puedan usar su arma de servicio",
+  "punish_sent" = "Jueces deberían dar condenas mucho más largas a personas que han cometido delitos",
+  "punish_lynch" = "Perseguir y golpear a una persona que ha cometido un delito"
+)
+
+
+
+
+# Función para gráficos binarios
+plot_variable_binaria <- function(variable, titulo_variable, subtitulo = "") {
+  data_long <- panel_data %>%
+    select(ticket, wave_num, fecha_ola, all_of(variable)) %>%
+    filter(!is.na(.data[[variable]])) %>%
+    mutate(categoria = factor(ifelse(.data[[variable]] == 1, "Sí", "No"), levels = c("Sí", "No")))
+  
+  tendencias <- data_long %>%
+    group_by(wave_num, fecha_ola, categoria) %>%
+    summarise(n = n(), .groups = "drop") %>%
+    group_by(wave_num, fecha_ola) %>%
+    mutate(porcentaje = n / sum(n) * 100) %>%
+    ungroup()
+  
+  tendencias$fecha_ola <- factor(tendencias$fecha_ola, 
+                                 levels = c("Septiembre 2024", "Enero 2025", "Abril 2025"))
+  
+  tendencias %>%
+    ggplot(aes(x = fecha_ola, y = porcentaje, fill = categoria)) +
+    geom_col(position = position_dodge(width = 0.8), width = 0.7, color = "white", size = 0.8) +
+    geom_text(aes(label = paste0(round(porcentaje), "%")), 
+              position = position_dodge(width = 0.8), 
+              vjust = -0.5, color = "black", fontface = "bold", size = 6) +
+    scale_y_continuous(labels = function(x) paste0(x, "%"), expand = expansion(mult = c(0, 0.1))) +
+    scale_fill_manual(values = colors_viridis_binary, name = "Respuesta") +
+    labs(
+      title = titulo_variable,
+      subtitle = ifelse(subtitulo != "", subtitulo, ""),
+      x = "Olas de Seguimiento",
+      y = "Porcentaje",
+      caption = "Solo panel original con seguimiento longitudinal"
+    ) +
+    theme_esep_longitudinal()
+}
+
+# Función para % acuerdo/muy de acuerdo
+plot_variable_acuerdo <- function(variables, titulo_seccion, subtitulo = "") {
+  variables <- variables[variables %in% names(panel_data)]
+  if (length(variables) == 0) return(NULL)
+
+  data_long <- panel_data %>%
+    select(ticket, wave_num, fecha_ola, all_of(variables)) %>%
+    pivot_longer(cols = all_of(variables), names_to = "variable", values_to = "valor") %>%
+    filter(!is.na(valor)) %>%
+    mutate(
+      variable_label = var_labels[variable],
+      acuerdo = ifelse(valor %in% c(1, 2), 1, 0)
+    )
+  
+  tendencias <- data_long %>%
+    group_by(wave_num, fecha_ola, variable, variable_label) %>%
+    summarise(
+      porcentaje = mean(acuerdo, na.rm = TRUE) * 100,
+      .groups = "drop"
+    )
+  
+  tendencias$fecha_ola <- factor(tendencias$fecha_ola, 
+                                 levels = c("Septiembre 2024", "Enero 2025", "Abril 2025"))
+  
+  tendencias %>%
+    ggplot(aes(x = fecha_ola, y = porcentaje, fill = variable_label)) +
+    geom_col(position = position_dodge(width = 0.9), width = 0.8, color = "white", size = 0.8) +
+    geom_text(aes(label = paste0(round(porcentaje), "%")), 
+              position = position_dodge(width = 0.9), 
+              vjust = -0.5, color = "black", fontface = "bold", size = 5) +
+    scale_y_continuous(labels = function(x) paste0(x, "%"), expand = expansion(mult = c(0, 0.1))) +
+    scale_fill_viridis_d(option = "viridis", name = "") +
+    labs(
+      title = titulo_seccion,
+      subtitle = ifelse(subtitulo != "", subtitulo, "Porcentaje de acuerdo + muy de acuerdo"),
+      x = "Olas de Seguimiento",
+      y = "Porcentaje",
+      caption = "Solo panel original con seguimiento longitudinal"
+    ) +
+    theme_esep_longitudinal() +
+    theme(
+      legend.text = element_text(size = 14),
+      legend.position = "bottom",
+      legend.box = "horizontal"
+    ) +
+    guides(fill = guide_legend(nrow = 2, byrow = TRUE))
+}
+
+# Función para % siempre/casi siempre
+plot_variable_siempre <- function(variables, titulo_seccion, subtitulo = "") {
+  data_long <- panel_data %>%
+    select(ticket, wave_num, fecha_ola, all_of(variables)) %>%
+    pivot_longer(cols = all_of(variables), names_to = "variable", values_to = "valor") %>%
+    filter(!is.na(valor)) %>%
+    mutate(
+      variable_label = var_labels[variable],
+      siempre = ifelse(valor %in% c(4, 5), 1, 0)
+    )
+  
+  tendencias <- data_long %>%
+    group_by(wave_num, fecha_ola, variable, variable_label) %>%
+    summarise(
+      porcentaje = mean(siempre, na.rm = TRUE) * 100,
+      .groups = "drop"
+    )
+  
+  tendencias$fecha_ola <- factor(tendencias$fecha_ola, 
+                                 levels = c("Septiembre 2024", "Enero 2025", "Abril 2025"))
+  
+  tendencias %>%
+    ggplot(aes(x = fecha_ola, y = porcentaje, fill = variable_label)) +
+    geom_col(position = position_dodge(width = 0.9), width = 0.8, color = "white", size = 0.8) +
+    geom_text(aes(label = paste0(round(porcentaje), "%")), 
+              position = position_dodge(width = 0.9), 
+              vjust = -0.5, color = "black", fontface = "bold", size = 5) +
+    scale_y_continuous(labels = function(x) paste0(x, "%"), expand = expansion(mult = c(0, 0.1))) +
+    scale_fill_viridis_d(option = "viridis", name = "") +
+    labs(
+      title = titulo_seccion,
+      subtitle = ifelse(subtitulo != "", subtitulo, "Porcentaje de siempre + casi siempre"),
+      x = "Olas de Seguimiento",
+      y = "Porcentaje",
+      caption = "Solo panel original con seguimiento longitudinal"
+    ) +
+    theme_esep_longitudinal() +
+    theme(
+      legend.text = element_text(size = 14),
+      legend.position = "bottom",
+      legend.box = "horizontal"
+    ) +
+    guides(fill = guide_legend(nrow = 2, byrow = TRUE))
+}
+
+# CORRECCIÓN: Nueva función para el gráfico de líneas de corrupción, ahora mostrando porcentajes.
+plot_corruption_percentage_lineas <- function(variables, titulo_seccion, subtitulo = "") {
+  data_long <- panel_data %>%
+    select(ticket, wave_num, fecha_ola, all_of(variables)) %>%
+    pivot_longer(cols = all_of(variables), names_to = "variable", values_to = "valor") %>%
+    filter(!is.na(valor)) %>%
+    mutate(
+      variable_label = var_labels[variable],
+      # Se considera corrupta si la respuesta es 4 (bastante) o 5 (muy)
+      corrupta = ifelse(valor %in% c(4, 5), 1, 0)
+    )
+  
+  tendencias <- data_long %>%
+    group_by(wave_num, fecha_ola, variable, variable_label) %>%
+    summarise(
+      porcentaje = mean(corrupta, na.rm = TRUE) * 100,
+      .groups = "drop"
+    )
+  
+  tendencias$fecha_ola <- factor(tendencias$fecha_ola, 
+                                 levels = c("Septiembre 2024", "Enero 2025", "Abril 2025"))
+  
+  tendencias %>%
+    ggplot(aes(x = fecha_ola, y = porcentaje, color = variable_label, group = variable_label)) +
+    geom_line(size = 3) +
+    geom_point(size = 6) +
+    geom_text(aes(label = paste0(round(porcentaje), "%")), 
+              vjust = -0.8, color = "black", fontface = "bold", size = 6) +
+    scale_y_continuous(labels = function(x) paste0(x, "%"), limits = c(0, 100)) +
+    scale_color_viridis_d(option = "viridis", name = "") +
+    labs(
+      title = titulo_seccion,
+      subtitle = ifelse(subtitulo != "", subtitulo, "Porcentaje que los considera 'bastante' o 'muy' corruptos"),
+      x = "Olas de Seguimiento",
+      y = "Porcentaje",
+      caption = "Solo panel original con seguimiento longitudinal"
+    ) +
+    theme_esep_longitudinal() +
+    theme(legend.text = element_text(size = 16))
+}
+
+# Función sociodemográficos
+plot_variable_por_sociodem <- function(variable, var_sociodem, titulo_variable, titulo_sociodem, tipo = "acuerdo") {
+  if (!var_sociodem %in% names(panel_data)) {
+    warning(paste("La variable sociodemográfica", var_sociodem, "no se encontró. Se omitirá el gráfico."))
+    return(NULL)
+  }
+
+  data_long <- panel_data %>%
+    select(ticket, wave_num, fecha_ola, all_of(variable), all_of(var_sociodem)) %>%
+    filter(!is.na(!!sym(var_sociodem)), !is.na(.data[[variable]])) %>%
+    mutate(grupo = factor(.data[[var_sociodem]]))
+  
+  if(tipo == "acuerdo") {
+    data_long <- data_long %>%
+      mutate(respuesta_positiva = ifelse(.data[[variable]] %in% c(1,2), 1, 0))
+  } else if(tipo == "binaria") {
+    data_long <- data_long %>%
+      mutate(respuesta_positiva = .data[[variable]])
+  } else if(tipo == "inseguridad") {
+    data_long <- data_long %>%
+      mutate(respuesta_positiva = ifelse(.data[[variable]] %in% c(3, 4), 1, 0))
+  }
+  
+  tendencias <- data_long %>%
+    group_by(wave_num, fecha_ola, grupo) %>%
+    summarise(
+      porcentaje = mean(respuesta_positiva, na.rm = TRUE) * 100,
+      n = n(),
+      .groups = "drop"
+    ) %>%
+    filter(n >= 20)
+  
+  tendencias$fecha_ola <- factor(tendencias$fecha_ola, 
+                                 levels = c("Septiembre 2024", "Enero 2025", "Abril 2025"))
+  
+  tendencias %>%
+    ggplot(aes(x = fecha_ola, y = porcentaje, fill = grupo)) +
+    geom_bar(position = position_dodge(width = 0.8), stat = 'identity', color = "white", width = 0.7, size = 0.8) +
+    geom_text(aes(label = paste0(round(porcentaje), "%")), 
+              position = position_dodge(width = 0.8), 
+              vjust = -0.5, color = "black", fontface = "bold", size = 5) +
+    scale_y_continuous(labels = function(x) paste0(x, "%"), expand = expansion(mult = c(0, 0.1))) +
+    scale_fill_viridis_d(option = "viridis", name = titulo_sociodem) +
+    labs(
+      title = paste(titulo_variable, "por", titulo_sociodem),
+      subtitle = ifelse(tipo == "acuerdo", "Porcentaje de respuestas positivas (acuerdo + muy de acuerdo)", 
+                        ifelse(tipo == "binaria", "Porcentaje de respuestas afirmativas",
+                               "Porcentaje de respuestas de inseguridad")),
+      x = "Olas de Seguimiento", 
+      y = "Porcentaje",
+      caption = "Panel EPSEP: Solo grupos con suficientes casos (n≥20)"
+    ) +
+    theme_esep_longitudinal()
+}
+
+# Funciones alluvial con categorías reales
+plot_alluvial_proporciones <- function(variable, titulo) {
+  if(!variable %in% names(panel_data)) {
+    return(NULL)
+  }
+  
+  # Crear etiquetas para categorías según la variable
+  crear_etiquetas <- function(variable, valores) {
+    if(variable %in% c("crime_fear", "inseguro")) {
+      case_when(
+        valores == 1 ~ "Muy seguro",
+        valores == 2 ~ "Seguro", 
+        valores == 3 ~ "Inseguro",
+        valores == 4 ~ "Muy inseguro",
+        TRUE ~ as.character(valores)
+      )
+    } else if(variable %in% c("efficacy_crime", "efficacy_crime_pdi", "leg_moral1", "leg_obey1", 
+                              "leg_moral_pdi", "leg_obey_pdi", "pj_proc_crime", "pj_int_crime",
+                              "pj_proc_crime_pdi", "pj_int_crime_pdi", "emp_pol1", "punish_sent", 
+                              "punish_lynch", "just_vio_pol_protest", "just_vio_pol_crime",
+                              "impunity_perc", "impunity_just")) {
+      case_when(
+        valores == 5 ~ "Muy en desacuerdo",
+        valores == 4 ~ "En desacuerdo",
+        valores == 3 ~ "Ni acuerdo ni desacuerdo", 
+        valores == 2 ~ "De acuerdo",
+        valores == 1 ~ "Muy de acuerdo",
+        TRUE ~ as.character(valores)
+      )
+    } else if(variable %in% c("corrupt_pol", "corrupt_pdi")) {
+      case_when(
+        valores == 1 ~ "Nada corrupta",
+        valores == 2 ~ "Poco corrupta",
+        valores == 3 ~ "Algo corrupta",
+        valores == 4 ~ "Bastante corrupta", 
+        valores == 5 ~ "Muy corrupta",
+        TRUE ~ as.character(valores)
+      )
+    } else {
+      as.character(valores)
+    }
+  }
+  
+  traj_data <- panel_data %>%
+    filter(!is.na(.data[[variable]]) & !is.na(ticket)) %>%
+    select(ticket, fecha_ola, all_of(variable)) %>%
+    distinct(ticket, fecha_ola, .keep_all = TRUE) %>%
+    group_by(ticket) %>%
+    filter(n() == 3) %>%
+    ungroup() %>%
+    mutate(
+      categoria = crear_etiquetas(variable, .data[[variable]]),
+      ola = factor(fecha_ola, levels = c("Septiembre 2024", "Enero 2025", "Abril 2025"))
+    ) %>%
+    filter(!is.na(categoria) & !is.na(ola))
+
+  n_individuos <- length(unique(traj_data$ticket))
+  if(nrow(traj_data) == 0 || n_individuos == 0) {
+    return(NULL)
+  }
+  
+  traj_data %>%
+    ggplot(aes(x = ola, stratum = categoria, alluvium = ticket, fill = categoria)) +
+    geom_flow(alpha = 0.6, curve_type = "xspline") +
+    geom_stratum(alpha = 0.8, color = "white", size = 1) +
+    geom_text(stat = "stratum", 
+              aes(label = scales::percent(after_stat(prop), accuracy = 1L)),
+              size = 4, fontface = "bold", color = "black") +
+    scale_fill_viridis_d(option = "viridis", name = "Categoría") +
+    labs(
+      title = titulo,
+      subtitle = glue("n = {n_individuos} individuos. El % en la etiqueta es la proporción dentro de cada ola."),
+      x = "Olas de Seguimiento",
+      y = "Número de Individuos",
+      caption = "Solo individuos con 3 observaciones válidas"
+    ) +
+    theme_esep_longitudinal() +
+    theme(
+      panel.grid = element_blank(),
+      legend.text = element_text(size = 14),
+      legend.title = element_text(size = 16)
+    )
+}
+
+plot_alluvial_binaria <- function(variable, titulo) {
+  if(!variable %in% names(panel_data)) {
+    return(NULL)
+  }
+  
+  traj_data <- panel_data %>%
+    filter(!is.na(.data[[variable]]) & !is.na(ticket)) %>%
+    select(ticket, fecha_ola, all_of(variable)) %>%
+    distinct(ticket, fecha_ola, .keep_all = TRUE) %>%
+    group_by(ticket) %>%
+    filter(n() == 3) %>%
+    ungroup() %>%
+    mutate(
+      categoria = factor(ifelse(.data[[variable]] == 1, "Sí", "No"), levels = c("Sí", "No")),
+      ola = factor(fecha_ola, levels = c("Septiembre 2024", "Enero 2025", "Abril 2025"))
+    ) %>%
+    filter(!is.na(categoria) & !is.na(ola))
+
+  n_individuos <- length(unique(traj_data$ticket))
+  if(nrow(traj_data) == 0 || n_individuos == 0) {
+    return(NULL)
+  }
+  
+  traj_data %>%
+    ggplot(aes(x = ola, stratum = categoria, alluvium = ticket, fill = categoria)) +
+    geom_flow(alpha = 0.6, curve_type = "xspline") +
+    geom_stratum(alpha = 0.8, color = "white", size = 1) +
+    geom_text(stat = "stratum",
+              aes(label = scales::percent(after_stat(prop), accuracy = 1L)),
+              size = 4, fontface = "bold", color = "black") +
+    scale_fill_manual(values = colors_viridis_binary, name = "Respuesta") +
+    labs(
+      title = titulo,
+      subtitle = glue("n = {n_individuos} individuos. El % en la etiqueta es la proporción dentro de cada ola."),
+      x = "Olas de Seguimiento",
+      y = "Número de Individuos",
+      caption = "Solo individuos con 3 observaciones válidas"
+    ) +
+    theme_esep_longitudinal() +
+    theme(
+      panel.grid = element_blank(),
+      legend.text = element_text(size = 14),
+      legend.title = element_text(size = 16)
+    )
+}
+```
+
+# TENDENCIAS PROMEDIO EN EL TIEMPO
+
+## 
+
+```{r, echo=FALSE, fig.width=12, fig.height=7, warning=FALSE}
+plot_variable_binaria(
+  "victim", 
+  "Victimización",
+  "Porcentaje de la muestra que reportó ser víctima de un delito durante los últimos tres meses"
+)
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("victim", "ses_clean", "Victimización", "Nivel Socioeconómico", "binaria")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("victim", "sex_clean", "Victimización", "Sexo", "binaria")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("victim", "region_clean", "Victimización", "Región", "binaria")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("victim", "age_clean", "Victimización", "Edad", "binaria")
+```
+
+## 
+
+```{r victim-pos-politica, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("victim", "pos_politica_clean", "Victimización", "Posición Política", "binaria")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=12, fig.height=7, warning=FALSE}
+plot_variable_binaria(
+  "inseguro", 
+  "Percepción de Inseguridad", 
+  "Porcentaje que se siente inseguro/muy inseguro al caminar de noche por su barrio"
+)
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("crime_fear", "ses_clean", "Percepción de Inseguridad", "Nivel Socioeconómico", "inseguridad")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("crime_fear", "sex_clean", "Percepción de Inseguridad", "Sexo", "inseguridad")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("crime_fear", "region_clean", "Percepción de Inseguridad", "Región", "inseguridad")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=12, fig.height=7, warning=FALSE}
+plot_variable_acuerdo(
+  c("efficacy_crime", "efficacy_crime_pdi"),
+  "Eficacia de las Policías en el Control de la Delincuencia"
+)
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("efficacy_crime", "contact_pol_clean", "Eficacia Carabineros de Chile", "Contacto con Carabineros", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("efficacy_crime_pdi", "contact_pdi_clean", "Eficacia Policía de Investigaciones", "Contacto con PDI", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("efficacy_crime", "ses_clean", "Eficacia Carabineros de Chile", "Nivel Socioeconómico", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("efficacy_crime", "sex_clean", "Eficacia Carabineros de Chile", "Sexo", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("efficacy_crime", "region_clean", "Eficacia Carabineros de Chile", "Región", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=12, fig.height=7, warning=FALSE}
+plot_variable_acuerdo(
+  c("leg_moral1", "leg_moral_pdi", "leg_obey1", "leg_obey_pdi"),
+  "Percepciones de Legitimidad de las Policías"
+)
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("leg_moral1", "contact_pol_clean", "Legitimidad Moral Carabineros", "Contacto con Carabineros", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("leg_moral_pdi", "contact_pdi_clean", "Legitimidad Moral PDI", "Contacto con PDI", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("leg_moral1", "ses_clean", "Legitimidad Moral Carabineros", "Nivel Socioeconómico", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("leg_moral1", "sex_clean", "Legitimidad Moral Carabineros", "Sexo", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("leg_moral1", "region_clean", "Legitimidad Moral Carabineros", "Región", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=12, fig.height=7, warning=FALSE}
+plot_variable_siempre(
+  c("pj_proc_crime", "pj_proc_crime_pdi", "pj_int_crime", "pj_int_crime_pdi"),
+  "Percepciones de Justicia en el Trato de las Policías"
+)
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("pj_proc_crime", "contact_pol_clean", "Justicia Procedimental Carabineros", "Contacto con Carabineros", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("pj_proc_crime_pdi", "contact_pdi_clean", "Justicia Procedimental PDI", "Contacto con PDI", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("pj_proc_crime", "ses_clean", "Justicia Procedimental Carabineros", "Nivel Socioeconómico", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("pj_proc_crime", "sex_clean", "Justicia Procedimental Carabineros", "Sexo", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("pj_proc_crime", "region_clean", "Justicia Procedimental Carabineros", "Región", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=12, fig.height=7, warning=FALSE}
+plot_corruption_percentage_lineas(
+  c("corrupt_pol", "corrupt_pdi"),
+  "Percepción de Corrupción de las Policías"
+)
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("corrupt_pol", "contact_pol_clean", "Corrupción Carabineros de Chile", "Contacto con Carabineros", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("corrupt_pdi", "contact_pdi_clean", "Corrupción Policía de Investigaciones", "Contacto con PDI", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("corrupt_pol", "ses_clean", "Corrupción Carabineros de Chile", "Nivel Socioeconómico", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("corrupt_pol", "sex_clean", "Corrupción Carabineros de Chile", "Sexo", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("corrupt_pol", "region_clean", "Corrupción Carabineros de Chile", "Región", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=12, fig.height=7, warning=FALSE}
+plot_variable_acuerdo(
+  c("impunity_perc", "impunity_just"),
+  "Percepción y Justificación de la Impunidad de Carabineros de Chile"
+)
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("impunity_perc", "contact_pol_clean", "Impunidad Carabineros", "Contacto con Carabineros", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("impunity_perc", "ses_clean", "Impunidad Carabineros", "Nivel Socioeconómico", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("impunity_perc", "sex_clean", "Impunidad Carabineros", "Sexo", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("impunity_perc", "region_clean", "Impunidad Carabineros", "Región", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=12, fig.height=7, warning=FALSE}
+plot_variable_binaria("vio_pol_protest", "Violencia hacia manifestantes", "Porcentaje que reporta haber observado violencia")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=12, fig.height=7, warning=FALSE}
+plot_variable_binaria("vio_pol_crime", "Violencia hacia personas que han cometido delitos", "Porcentaje que reporta haber observado violencia")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("vio_pol_protest", "contact_pol_clean", "Violencia hacia Manifestantes", "Contacto con Carabineros", "binaria")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("vio_pol_protest", "ses_clean", "Violencia hacia Manifestantes", "Nivel Socioeconómico", "binaria")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("vio_pol_protest", "sex_clean", "Violencia hacia Manifestantes", "Sexo", "binaria")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("vio_pol_protest", "region_clean", "Violencia hacia Manifestantes", "Región", "binaria")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=12, fig.height=7, warning=FALSE}
+plot_variable_siempre(
+  c("just_vio_pol_protest", "just_vio_pol_crime"),
+  "Justificación de la Violencia por parte de Carabineros de Chile"
+)
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("just_vio_pol_protest", "contact_pol_clean", "Justificación Violencia en Protestas", "Contacto con Carabineros", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("just_vio_pol_protest", "ses_clean", "Justificación Violencia en Protestas", "Nivel Socioeconómico", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("just_vio_pol_protest", "sex_clean", "Justificación Violencia en Protestas", "Sexo", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("just_vio_pol_protest", "region_clean", "Justificación Violencia en Protestas", "Región", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=12, fig.height=7, warning=FALSE}
+plot_variable_acuerdo(
+  "emp_pol1",
+  "Apoyo al Uso de Armas por parte de Carabineros"
+)
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("emp_pol1", "contact_pol_clean", "Apoyo Uso de Armas", "Contacto con Carabineros", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("emp_pol1", "ses_clean", "Apoyo Uso de Armas", "Nivel Socioeconómico", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("emp_pol1", "sex_clean", "Apoyo Uso de Armas", "Sexo", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("emp_pol1", "region_clean", "Apoyo Uso de Armas", "Región", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=12, fig.height=7, warning=FALSE}
+plot_variable_acuerdo(
+  "punish_sent",
+  "Apoyo a Castigos más Severos"
+)
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("punish_sent", "contact_pol_clean", "Apoyo Castigos Severos", "Contacto con Carabineros", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("punish_sent", "ses_clean", "Apoyo Castigos Severos", "Nivel Socioeconómico", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("punish_sent", "sex_clean", "Apoyo Castigos Severos", "Sexo", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("punish_sent", "region_clean", "Apoyo Castigos Severos", "Región", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=12, fig.height=7, warning=FALSE}
+plot_variable_siempre(
+  "punish_lynch",
+  "Apoyo a los Linchamientos"
+)
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("punish_lynch", "contact_pol_clean", "Apoyo Linchamientos", "Contacto con Carabineros", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("punish_lynch", "ses_clean", "Apoyo Linchamientos", "Nivel Socioeconómico", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("punish_lynch", "sex_clean", "Apoyo Linchamientos", "Sexo", "acuerdo")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=14, fig.height=8, warning=FALSE}
+plot_variable_por_sociodem("punish_lynch", "region_clean", "Apoyo Linchamientos", "Región", "acuerdo")
+```
+
+# TRAYECTORIAS INDIVIDUALES
+
+## 
+
+```{r, echo=FALSE, fig.width=12, fig.height=7, warning=FALSE}
+plot_alluvial_binaria("victim", "Trayectorias: Victimización")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=12, fig.height=7, warning=FALSE}
+plot_alluvial_binaria("inseguro", "Trayectorias: Percepción de Inseguridad")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=12, fig.height=7, warning=FALSE}
+plot_alluvial_proporciones("efficacy_crime", "Trayectorias: Eficacia Carabineros de Chile")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=12, fig.height=7, warning=FALSE}
+plot_alluvial_proporciones("leg_moral1", "Trayectorias: Legitimidad Moral Carabineros")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=12, fig.height=7, warning=FALSE}
+plot_alluvial_proporciones("corrupt_pol", "Trayectorias: Corrupción Percibida")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=12, fig.height=7, warning=FALSE}
+plot_alluvial_proporciones("efficacy_crime_pdi", "Trayectorias: Eficacia Policía de Investigaciones")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=12, fig.height=7, warning=FALSE}
+plot_alluvial_proporciones("emp_pol1", "Trayectorias: Apoyo al Uso de Armas")
+```
+
+## 
+
+```{r, echo=FALSE, fig.width=12, fig.height=7, warning=FALSE}
+plot_alluvial_proporciones("punish_sent", "Trayectorias: Apoyo a Castigos Severos")
+```
+
+## 
+
+![](logo_oles.jpg){fig-align="center"}
+
+Como citar: Observatorio de Violencia y Legitimidad Social (2025). Primer Informe de Estudio Panel de Percepciones de Seguridad y Policías en Chile.
+
+# 

@@ -1,0 +1,35 @@
+---
+title: "Esucha social de figuras presidenciales en Chile"
+subtitle: "Una aproximación mediante comunidades en Reddit: Un enfoque computacional"
+institute: ""
+date: today
+format: 
+  revealjs:
+    theme: simple
+    slide-number: true
+    incremental: false
+    fontsize: 28px
+    margin: 0.3
+    transition: fade
+    controls: true
+    controls-layout: bottom-right
+    css: styles.css
+    template-partials:
+      - title-slide.html
+    cite-method: citeproc
+    footer: "Universida de Concepción - CDIA"
+---
+
+## Introducción
+
+En el último tiempo la política chilena....
+
+## Aproximaciones teóricas
+
+## Sobre la innovación
+
+## Métodos
+
+### Datos
+
+### Análisis
