@@ -1,5 +1,5 @@
 ---
-title: "Esucha social de figuras presidenciales en Chile"
+title: "Escucha social de figuras presidenciales en Chile"
 subtitle: "Una aproximación mediante comunidades en Reddit: Un enfoque computacional"
 institute: ""
 date: today
