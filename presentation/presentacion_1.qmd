@@ -1,6 +1,6 @@
 ---
-title: "Escucha social de comunidades digitales en Chile"
-subtitle: "Una aproximación desde Reddit: Un enfoque computacional"
+title: "Escucha social de comunidades chilenas en Reddit"
+subtitle: "Un enfoque computacional"
 institute: ""
 date: today
 format: 

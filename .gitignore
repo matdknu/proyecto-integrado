@@ -4,3 +4,11 @@ script/input/nlp.py
 script/input/reddit_general.py
 script/input/reddit-2018.py
 script/input/reddit_general.py
+script/input/reddit_republica-chile.py
+reddit_data/r_SpainPolitics_20250809_0035.xlsx
+reddit_data/r_republicachile_reciente_20250807_2132.xlsx
+reddit_data/r_republica-argentina_20250808_2355.xlsx
+script/input/reddit-spain-derecha.py
+script/input/reddit-argentina.py
+script/input/reddit_chile.py
+script/input/reddit_actualidad_chile.py
