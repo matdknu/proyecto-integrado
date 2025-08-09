@@ -1,7 +1,7 @@
 ---
 title: "Escucha social de comunidades chilenas en Reddit"
 subtitle: "Un enfoque computacional"
-institute: ""
+institute: "Matías Deneken & Gabriel Saavedra"
 date: today
 format: 
   revealjs:
